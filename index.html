@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<title>⚔️ Mini Kingdom</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  position:fixed;
+  top:0;left:0;
+  font-family:'Arial',sans-serif;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  background:#0d0d1a;
+  color:#fff;
+}
+
+/* ══ ЭКРАНЫ ══ */
+.screen{display:none;position:fixed;inset:0;flex-direction:column;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* ══ HUD ══ */
+#hud{
+  flex-shrink:0;
+  padding:10px 12px 6px;
+  background:linear-gradient(180deg,rgba(0,0,0,0.8)0%,rgba(0,0,0,0.4)100%);
+  display:flex;flex-direction:column;gap:6px;
+  z-index:30;
+}
+.hud-top{display:flex;justify-content:space-between;align-items:center;}
+.hud-title{font-size:18px;font-weight:900;color:#ffd600;letter-spacing:-0.5px;}
+.hud-turn{font-size:12px;color:rgba(255,255,255,0.5);}
+.res-row{display:flex;gap:6px;}
+.res-chip{
+  flex:1;
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:10px;
+  padding:4px 8px;
+  text-align:center;
+  font-size:11px;
+  color:rgba(255,255,255,0.5);
+}
+.res-chip b{display:block;font-size:16px;font-weight:900;color:#ffd600;line-height:1.2;}
+.xp-bar-wrap{height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;}
+.xp-bar{height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);width:0%;transition:width 0.4s;}
+
+/* ══ КАРТА (canvas) ══ */
+#map-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
+#mapCanvas{display:block;width:100%;height:100%;touch-action:none;}
+
+/* ══ ПАНЕЛЬ ДЕЙСТВИЙ ══ */
+#actions-panel{
+  flex-shrink:0;
+  background:linear-gradient(0deg,rgba(0,0,0,0.9)0%,rgba(0,0,0,0.6)100%);
+  padding:8px 10px 16px;
+  z-index:30;
+}
+/* вкладки */
+.tabs{display:flex;gap:4px;margin-bottom:8px;}
+.tab{
+  flex:1;padding:6px 4px;
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;
+  font-size:11px;font-weight:700;
+  color:rgba(255,255,255,0.5);
+  cursor:pointer;text-align:center;
+  transition:all 0.15s;
+}
+.tab.active{background:rgba(124,58,237,0.35);border-color:#7c3aed;color:#fff;}
+
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+/* армия */
+.units-grid{display:flex;gap:6px;}
+.unit-card{
+  flex:1;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;
+  padding:8px 4px;
+  text-align:center;
+  cursor:pointer;
+  transition:all 0.12s;
+}
+.unit-card:active{transform:scale(0.93);background:rgba(100,149,255,0.2);}
+.unit-card .u-icon{font-size:24px;}
+.unit-card .u-name{font-size:10px;color:rgba(255,255,255,0.5);margin:2px 0;}
+.unit-card .u-count{font-size:18px;font-weight:900;color:#6495ff;}
+.unit-card .u-power{font-size:10px;color:#4ade80;}
+.unit-card .u-cost{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;}
+.unit-card.cant{opacity:0.4;pointer-events:none;}
+
+/* действия */
+.actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.act-btn{
+  padding:10px 8px;
+  border:none;border-radius:12px;
+  font-size:12px;font-weight:900;
+  color:#fff;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  transition:transform 0.1s,opacity 0.15s;
+  line-height:1.2;
+}
+.act-btn:active{transform:scale(0.94);}
+.act-btn:disabled{opacity:0.3;pointer-events:none;}
+.act-btn.green{background:linear-gradient(135deg,#16a34a,#15803d);}
+.act-btn.red{background:linear-gradient(135deg,#dc2626,#b91c1c);}
+.act-btn.blue{background:linear-gradient(135deg,#1d4ed8,#1e40af);}
+.act-btn.gold{background:linear-gradient(135deg,#d97706,#b45309);}
+.act-btn small{font-size:10px;opacity:0.8;font-weight:400;}
+
+/* улучшения */
+.upgrades-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.upg-card{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;
+  padding:8px;
+  cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  transition:all 0.12s;
+}
+.upg-card:active{transform:scale(0.95);}
+.upg-card.maxed{border-color:rgba(250,204,21,0.4);opacity:0.7;pointer-events:none;}
+.upg-card .upg-icon{font-size:22px;flex-shrink:0;}
+.upg-card .upg-info{flex:1;min-width:0;}
+.upg-card .upg-name{font-size:11px;font-weight:700;color:#fff;}
+.upg-card .upg-level{font-size:10px;color:#fbbf24;}
+.upg-card .upg-cost{font-size:10px;color:rgba(255,255,255,0.4);}
+.upg-card.cant .upg-cost{color:#ef4444;}
+
+/* ══ ЛОГ ══ */
+#log-wrap{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  height:0;
+  overflow:hidden;
+  transition:height 0.25s;
+  z-index:40;
+  background:rgba(0,0,0,0.92);
+  border-top:1px solid rgba(255,255,255,0.1);
+}
+#log-wrap.open{height:160px;}
+#log-inner{padding:8px 12px;overflow-y:auto;height:100%;font-size:12px;display:flex;flex-direction:column-reverse;gap:3px;}
+.log-entry{padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);}
+.log-win{color:#4ade80;}
+.log-lose{color:#f87171;}
+.log-event{color:#fbbf24;}
+#log-toggle{
+  position:absolute;
+  bottom:0;right:12px;
+  background:rgba(124,58,237,0.8);
+  border:none;border-radius:8px 8px 0 0;
+  padding:3px 12px;
+  font-size:11px;font-weight:700;color:#fff;
+  cursor:pointer;z-index:41;
+}
+
+/* ══ ТОСТ ══ */
+#toast{
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(0.8);
+  background:rgba(0,0,0,0.85);
+  border:1px solid rgba(255,255,255,0.2);
+  border-radius:20px;
+  padding:12px 28px;
+  font-size:16px;font-weight:700;
+  color:#fff;z-index:200;
+  opacity:0;pointer-events:none;
+  transition:all 0.2s;
+  text-align:center;
+  white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
+/* ══ МОДАЛ АТАКИ ══ */
+#battle-modal{
+  display:none;
+  position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,0.88);
+  flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  padding:20px;
+}
+#battle-modal.show{display:flex;}
+#battle-canvas{border-radius:16px;background:#111;}
+.battle-result{
+  text-align:center;font-size:22px;font-weight:900;
+}
+.battle-close{
+  padding:12px 40px;
+  background:#7c3aed;border:none;border-radius:20px;
+  color:#fff;font-size:16px;font-weight:900;
+  cursor:pointer;
+}
+.battle-close:active{transform:scale(0.95);}
+
+/* ══ GAME OVER ══ */
+#gameover{
+  display:none;
+  position:fixed;inset:0;z-index:150;
+  background:rgba(0,0,0,0.92);
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:30px;
+}
+#gameover.show{display:flex;}
+#gameover h1{font-size:42px;text-align:center;}
+#gameover .go-stats{font-size:16px;color:rgba(255,255,255,0.7);text-align:center;line-height:2;}
+.restart-btn{
+  padding:16px 48px;
+  background:#7c3aed;border:none;border-radius:28px;
+  color:#fff;font-size:20px;font-weight:900;
+  cursor:pointer;
+  box-shadow:0 6px 0 #4c1d95;
+  transition:transform 0.08s,box-shadow 0.08s;
+}
+.restart-btn:active{transform:translateY(3px);box-shadow:0 2px 0 #4c1d95;}
+
+/* ══ ПОБЕДА ══ */
+#victory{
+  display:none;
+  position:fixed;inset:0;z-index:150;
+  background:rgba(0,0,0,0.88);
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:30px;
+}
+#victory.show{display:flex;}
+#victory h1{font-size:36px;text-align:center;color:#ffd600;}
+
+/* ══ TILE INFO POPUP ══ */
+#tile-popup{
+  display:none;
+  position:fixed;
+  z-index:80;
+  background:rgba(20,20,40,0.97);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:16px;
+  padding:14px 18px;
+  min-width:200px;
+  max-width:260px;
+}
+#tile-popup.show{display:block;}
+.popup-title{font-size:16px;font-weight:900;margin-bottom:6px;}
+.popup-row{font-size:12px;color:rgba(255,255,255,0.6);margin:3px 0;display:flex;justify-content:space-between;}
+.popup-row b{color:#fff;}
+.popup-btns{display:flex;gap:8px;margin-top:10px;}
+.popup-btn{
+  flex:1;padding:8px;border:none;border-radius:10px;
+  font-size:13px;font-weight:700;color:#fff;cursor:pointer;
+}
+.popup-btn.attack-btn{background:#dc2626;}
+.popup-btn.cancel-btn{background:rgba(255,255,255,0.1);}
+</style>
+</head>
+<body>
+
+<!-- ══ MAIN SCREEN ══ -->
+<div class="screen active" id="main-screen">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-title">⚔️ Mini Kingdom</div>
+      <div class="hud-turn">Ход <span id="h-turn">1</span> | Победы: <span id="h-wins">0</span> | Ур.<span id="h-level">1</span></div>
+    </div>
+    <div class="res-row">
+      <div class="res-chip"><b id="r-gold">50</b>🪙 золото</div>
+      <div class="res-chip"><b id="r-wood">30</b>🪵 дерево</div>
+      <div class="res-chip"><b id="r-food">40</b>🍞 еда</div>
+      <div class="res-chip"><b id="r-stone">0</b>⛏️ камень</div>
+    </div>
+    <div class="xp-bar-wrap"><div class="xp-bar" id="xp-bar"></div></div>
+  </div>
+
+  <!-- КАРТА -->
+  <div id="map-wrap">
+    <canvas id="mapCanvas"></canvas>
+    <button id="log-toggle" onclick="toggleLog()">📜</button>
+    <div id="log-wrap"><div id="log-inner"></div></div>
+  </div>
+
+  <!-- ПАНЕЛЬ -->
+  <div id="actions-panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('army')">⚔️ Армия</div>
+      <div class="tab" onclick="switchTab('actions')">🎯 Действия</div>
+      <div class="tab" onclick="switchTab('upgrades')">🏗️ Стройка</div>
+    </div>
+
+    <!-- АРМИЯ -->
+    <div class="tab-content active" id="tab-army">
+      <div class="units-grid" id="units-grid"></div>
+    </div>
+
+    <!-- ДЕЙСТВИЯ -->
+    <div class="tab-content" id="tab-actions">
+      <div class="actions-grid">
+        <button class="act-btn green" id="btn-collect" onclick="doCollect()">
+          🪙 Собрать налоги<small id="collect-amount">+10🪙</small>
+        </button>
+        <button class="act-btn blue" id="btn-endturn" onclick="doEndTurn()">
+          ⏭️ След. ход<small id="income-preview">доход: +0🪙</small>
+        </button>
+        <button class="act-btn red" id="btn-attack-all" onclick="doAttackAll()">
+          ⚔️ Атака всех врагов<small>требует армию</small>
+        </button>
+        <button class="act-btn gold" id="btn-fortify" onclick="doFortify()">
+          🛡️ Укрепить замок<small>20🪵 → +15HP</small>
+        </button>
+      </div>
+    </div>
+
+    <!-- УЛУЧШЕНИЯ -->
+    <div class="tab-content" id="tab-upgrades">
+      <div class="upgrades-grid" id="upgrades-grid"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ МОДАЛ БОЯ ══ -->
+<div id="battle-modal">
+  <div class="battle-result" id="battle-title">⚔️ Бой!</div>
+  <canvas id="battle-canvas" width="300" height="180"></canvas>
+  <div id="battle-desc" style="font-size:14px;color:rgba(255,255,255,0.7);text-align:center;max-width:280px;"></div>
+  <button class="battle-close" id="battle-close-btn" style="display:none;" onclick="closeBattle()">Продолжить</button>
+</div>
+
+<!-- ══ POPUP ТАЙЛА ══ -->
+<div id="tile-popup">
+  <div class="popup-title" id="popup-title">Территория</div>
+  <div class="popup-row"><span>Тип врага</span><b id="popup-enemy">—</b></div>
+  <div class="popup-row"><span>Сила врага</span><b id="popup-epower">—</b></div>
+  <div class="popup-row"><span>Ваша сила</span><b id="popup-ppower">—</b></div>
+  <div class="popup-row"><span>Шанс победы</span><b id="popup-chance">—</b></div>
+  <div class="popup-row"><span>Награда</span><b id="popup-reward">—</b></div>
+  <div class="popup-btns">
+    <button class="popup-btn attack-btn" id="popup-attack-btn">⚔️ Атаковать</button>
+    <button class="popup-btn cancel-btn" onclick="closePopup()">Отмена</button>
+  </div>
+</div>
+
+<!-- ══ ТОСТ ══ -->
+<div id="toast"></div>
+
+<!-- ══ GAME OVER ══ -->
+<div id="gameover">
+  <div style="font-size:56px;">💀</div>
+  <h1>Королевство пало!</h1>
+  <div class="go-stats" id="go-stats"></div>
+  <button class="restart-btn" onclick="restartGame()">🔄 Заново</button>
+</div>
+
+<!-- ══ ПОБЕДА ══ -->
+<div id="victory">
+  <div style="font-size:56px;">👑</div>
+  <h1>Вы завоевали все земли!</h1>
+  <div style="font-size:15px;color:rgba(255,255,255,0.7);text-align:center;" id="vic-stats"></div>
+  <button class="restart-btn" onclick="restartGame()">🔄 Играть снова</button>
+</div>
+
+<script>
+if(window.Telegram&&window.Telegram.WebApp){
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+}
+document.body.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ══════════════════════════════════════════════════════════
+// КОНСТАНТЫ И ДАННЫЕ
+// ══════════════════════════════════════════════════════════
+
+const UNIT_DEFS={
+  warrior:{name:'Воин',    icon:'⚔️', power:6,  cost:{gold:15,food:10},      beats:'archer',  desc:'Бьёт лучников'},
+  archer: {name:'Лучник',  icon:'🏹', power:5,  cost:{gold:10,wood:15},      beats:'knight',  desc:'Бьёт конницу'},
+  knight: {name:'Рыцарь',  icon:'🐴', power:10, cost:{gold:30,food:20},      beats:'warrior', desc:'Бьёт воинов'},
+  mage:   {name:'Маг',     icon:'🧙', power:14, cost:{gold:50,wood:20,stone:10}, beats:null,  desc:'Сильнейший юнит'},
+};
+
+const UPGRADE_DEFS=[
+  {id:'barracks', name:'Казармы',    icon:'🏚️', maxLevel:3, baseCost:{gold:80,wood:40},       desc:'−15% стоимость найма'},
+  {id:'wall',     name:'Стены',      icon:'🧱', maxLevel:5, baseCost:{gold:60,wood:30,stone:20},desc:'+8 защиты замка'},
+  {id:'farm',     name:'Ферма',      icon:'🌾', maxLevel:4, baseCost:{gold:50,food:20},        desc:'+3🍞 в ход'},
+  {id:'sawmill',  name:'Лесопилка',  icon:'🪚', maxLevel:4, baseCost:{gold:50,wood:20},        desc:'+3🪵 в ход'},
+  {id:'mine',     name:'Шахта',      icon:'⛏️', maxLevel:3, baseCost:{gold:80,stone:10},       desc:'+2⛏️ в ход + открывает мага'},
+  {id:'market',   name:'Рынок',      icon:'🏪', maxLevel:3, baseCost:{gold:100,wood:30},       desc:'+5🪙 пассивно'},
+  {id:'tower',    name:'Башня',      icon:'🗼', maxLevel:3, baseCost:{gold:70,stone:30},       desc:'+10 урон в обороне'},
+  {id:'altar',    name:'Алтарь',     icon:'⛩️', maxLevel:2, baseCost:{gold:150,stone:40},      desc:'Раз в 5 ходов: +50🪙'},
+];
+
+// КАРТА — 4×4 = 16 тайлов, индекс 0 = замок игрока
+function makeMap(){
+  const tiles=[];
+  const enemyTypes=['warrior','archer','knight','warrior','archer','knight','warrior','mage'];
+  const rewards=[
+    {gold:20,wood:10,food:15,stone:0},
+    {gold:30,wood:20,food:10,stone:5},
+    {gold:40,wood:15,food:20,stone:10},
+    {gold:25,wood:30,food:15,stone:5},
+    {gold:50,wood:20,food:25,stone:15},
+    {gold:60,wood:30,food:20,stone:20},
+    {gold:45,wood:25,food:30,stone:10},
+    {gold:80,wood:40,food:40,stone:30},
+  ];
+  for(let i=0;i<16;i++){
+    if(i===0){
+      tiles.push({id:i,owned:true,enemy:null,locked:false,terrain:'castle'});
+    } else {
+      const hasEnemy=i<9;
+      const eIdx=hasEnemy?(i-1):0;
+      const ePower=hasEnemy?Math.floor(10+i*4+Math.random()*6):0;
+      const eArmy=hasEnemy?Math.floor(2+i*0.8):0;
+      tiles.push({
+        id:i,
+        owned:false,
+        locked:i>4,
+        terrain:['forest','mountain','plains','swamp'][Math.floor(Math.random()*4)],
+        enemy:hasEnemy?{
+          type:enemyTypes[eIdx%enemyTypes.length],
+          power:ePower,
+          army:eArmy,
+          hp:100,
+        }:null,
+        reward:hasEnemy?rewards[eIdx%rewards.length]:null,
+      });
+    }
+  }
+  return tiles;
+}
+
+// ══ СОСТОЯНИЕ ИГРЫ ══
+let G={};
+
+function newGame(){
+  G={
+    turn:1,
+    wins:0,
+    level:1,
+    xp:0,
+    xpToLevel:100,
+    res:{gold:50,wood:30,food:40,stone:0},
+    army:{warrior:2,archer:1,knight:0,mage:0},
+    castle:{hp:100,maxHp:100,defense:0},
+    map:makeMap(),
+    upgrades:{barracks:0,wall:0,farm:0,sawmill:0,mine:0,market:0,tower:0,altar:0},
+    collectUsed:false,
+    fortifyUsed:false,
+    lastAltarTurn:0,
+    totalTurns:0,
+    selectedTile:null,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+// КАРТА — CANVAS
+// ══════════════════════════════════════════════════════════
+
+const mapCanvas=document.getElementById('mapCanvas');
+const mctx=mapCanvas.getContext('2d');
+const GRID=4;
+let TILE_SIZE=0;
+let MAP_ANIM=0;
+let tileFlash={}; // id→{color,frames}
+let floatTexts=[]; // {x,y,text,life,color}
+
+const TERRAIN_COLORS={
+  castle: ['#2d4a6a','#1e3a5a'],
+  forest: ['#1a3a2a','#0f2a1a'],
+  mountain:['#3a3a4a','#2a2a3a'],
+  plains: ['#2a3a1a','#1a2a0a'],
+  swamp:  ['#2a3a2a','#1a2a1a'],
+};
+const TERRAIN_ICONS={
+  castle:'🏰',forest:'🌲',mountain:'⛰️',plains:'🌾',swamp:'🌿'
+};
+
+function resizeMap(){
+  const wrap=document.getElementById('map-wrap');
+  mapCanvas.width=wrap.offsetWidth;
+  mapCanvas.height=wrap.offsetHeight;
+  TILE_SIZE=Math.floor(Math.min(mapCanvas.width/GRID,mapCanvas.height/GRID));
+}
+
+function tileRect(id){
+  const col=id%GRID, row=Math.floor(id/GRID);
+  const offsetX=(mapCanvas.width-GRID*TILE_SIZE)/2;
+  const offsetY=(mapCanvas.height-GRID*TILE_SIZE)/2;
+  return {x:offsetX+col*TILE_SIZE,y:offsetY+row*TILE_SIZE,w:TILE_SIZE,h:TILE_SIZE};
+}
+
+function drawTile(tile){
+  const {x,y,w,h}=tileRect(tile.id);
+  const pad=3;
+  const r=10;
+  const terrain=tile.terrain||'plains';
+  const colors=TERRAIN_COLORS[terrain]||TERRAIN_COLORS.plains;
+
+  // flash overlay
+  let flashAlpha=0,flashColor='#fff';
+  if(tileFlash[tile.id]){
+    const f=tileFlash[tile.id];
+    flashAlpha=f.frames/15;
+    flashColor=f.color;
+    f.frames--;
+    if(f.frames<=0)delete tileFlash[tile.id];
+  }
+
+  // фон
+  mctx.fillStyle=tile.locked?'#1a1a2a':
+                 tile.owned?'#1e4a3a':
+                 tile.enemy?'#3a1a1a':colors[0];
+  mctx.beginPath();
+  mctx.roundRect(x+pad,y+pad,w-pad*2,h-pad*2,r);
+  mctx.fill();
+
+  // border
+  mctx.strokeStyle=tile.owned?'#4ade80':
+                   tile.enemy&&!tile.locked?'#ef4444':
+                   tile.locked?'rgba(255,255,255,0.05)':
+                   'rgba(255,255,255,0.1)';
+  mctx.lineWidth=tile.owned||(!tile.locked&&tile.enemy)?2:1;
+  mctx.beginPath();
+  mctx.roundRect(x+pad,y+pad,w-pad*2,h-pad*2,r);
+  mctx.stroke();
+
+  // flash
+  if(flashAlpha>0){
+    mctx.globalAlpha=flashAlpha*0.6;
+    mctx.fillStyle=flashColor;
+    mctx.beginPath();mctx.roundRect(x+pad,y+pad,w-pad*2,h-pad*2,r);mctx.fill();
+    mctx.globalAlpha=1;
+  }
+
+  mctx.textAlign='center';
+  mctx.textBaseline='middle';
+  const cx=x+w/2, cy=y+h/2;
+
+  if(tile.locked){
+    mctx.font=`${TILE_SIZE*0.28}px Arial`;
+    mctx.globalAlpha=0.3;
+    mctx.fillText('🔒',cx,cy);
+    mctx.globalAlpha=1;
+    return;
+  }
+
+  if(tile.owned&&tile.id===0){
+    // замок
+    mctx.font=`${TILE_SIZE*0.38}px Arial`;
+    mctx.fillText('🏰',cx,cy-TILE_SIZE*0.08);
+    // hp bar
+    const bw=w-pad*4, bh=5, bx=x+pad*2, by=y+h-pad*2-bh;
+    mctx.fillStyle='rgba(0,0,0,0.5)';
+    mctx.beginPath();mctx.roundRect(bx,by,bw,bh,3);mctx.fill();
+    const hpPct=G.castle.hp/G.castle.maxHp;
+    mctx.fillStyle=hpPct>0.5?'#4ade80':hpPct>0.25?'#facc15':'#ef4444';
+    mctx.beginPath();mctx.roundRect(bx,by,bw*hpPct,bh,3);mctx.fill();
+    return;
+  }
+
+  if(tile.owned){
+    mctx.font=`${TILE_SIZE*0.3}px Arial`;
+    mctx.fillText(TERRAIN_ICONS[terrain]||'🏞️',cx,cy-TILE_SIZE*0.05);
+    mctx.font=`${TILE_SIZE*0.18}px Arial`;
+    mctx.fillStyle='rgba(255,255,255,0.4)';
+    mctx.fillText('👑',cx+TILE_SIZE*0.22,cy-TILE_SIZE*0.22);
+    return;
+  }
+
+  if(tile.enemy){
+    const def=UNIT_DEFS[tile.enemy.type];
+    mctx.font=`${TILE_SIZE*0.32}px Arial`;
+    mctx.fillText(def?def.icon:'💀',cx,cy-TILE_SIZE*0.1);
+    // hp bar
+    const bw=w-pad*4, bh=4, bx=x+pad*2, by=y+h-pad*2-bh;
+    mctx.fillStyle='rgba(0,0,0,0.5)';
+    mctx.beginPath();mctx.roundRect(bx,by,bw,bh,2);mctx.fill();
+    mctx.fillStyle='#ef4444';
+    mctx.beginPath();mctx.roundRect(bx,by,bw*(tile.enemy.hp/100),bh,2);mctx.fill();
+    // сила
+    mctx.font=`bold ${TILE_SIZE*0.16}px Arial`;
+    mctx.fillStyle='rgba(255,150,150,0.9)';
+    mctx.fillText('💪'+tile.enemy.power,cx,y+h-pad*2-bh-8);
+    return;
+  }
+
+  // пустая доступная
+  mctx.font=`${TILE_SIZE*0.28}px Arial`;
+  mctx.globalAlpha=0.5;
+  mctx.fillText(TERRAIN_ICONS[terrain]||'🗺️',cx,cy);
+  mctx.globalAlpha=1;
+}
+
+function drawFloatTexts(){
+  for(let i=floatTexts.length-1;i>=0;i--){
+    const f=floatTexts[i];
+    f.y-=1.2; f.life-=0.025;
+    if(f.life<=0){floatTexts.splice(i,1);continue;}
+    mctx.globalAlpha=f.life;
+    mctx.fillStyle=f.color||'#ffd600';
+    mctx.font=`bold ${f.size||16}px Arial`;
+    mctx.textAlign='center';
+    mctx.fillText(f.text,f.x,f.y);
+    mctx.globalAlpha=1;
+  }
+}
+
+function drawMap(){
+  MAP_ANIM+=0.02;
+  mctx.clearRect(0,0,mapCanvas.width,mapCanvas.height);
+  // bg
+  mctx.fillStyle='#0d0d1a';
+  mctx.fillRect(0,0,mapCanvas.width,mapCanvas.height);
+  G.map.forEach(t=>drawTile(t));
+  drawFloatTexts();
+}
+
+// ══════════════════════════════════════════════════════════
+// TOUCH / CLICK НА КАРТУ
+// ══════════════════════════════════════════════════════════
+
+function getTileAt(px,py){
+  for(let i=0;i<G.map.length;i++){
+    const {x,y,w,h}=tileRect(i);
+    if(px>=x&&px<=x+w&&py>=y&&py<=y+h) return G.map[i];
+  }
+  return null;
+}
+
+mapCanvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const rect=mapCanvas.getBoundingClientRect();
+  const t=e.touches[0];
+  const px=(t.clientX-rect.left)*(mapCanvas.width/rect.width);
+  const py=(t.clientY-rect.top)*(mapCanvas.height/rect.height);
+  handleTileClick(px,py);
+},{passive:false});
+
+mapCanvas.addEventListener('mousedown',e=>{
+  const rect=mapCanvas.getBoundingClientRect();
+  const px=(e.clientX-rect.left)*(mapCanvas.width/rect.width);
+  const py=(e.clientY-rect.top)*(mapCanvas.height/rect.height);
+  handleTileClick(px,py);
+});
+
+function handleTileClick(px,py){
+  closePopup();
+  const tile=getTileAt(px,py);
+  if(!tile)return;
+
+  if(tile.locked){showToast('🔒 Сначала захвати соседние земли');return;}
+  if(tile.owned&&tile.id===0){
+    showToast('🏰 Замок HP: '+G.castle.hp+'/'+G.castle.maxHp+' | Защита: '+G.castle.defense);return;
+  }
+  if(tile.owned){showToast('✅ Ваша территория');return;}
+
+  // показываем popup
+  G.selectedTile=tile.id;
+  showTilePopup(tile,px,py);
+}
+
+function showTilePopup(tile,px,py){
+  const popup=document.getElementById('tile-popup');
+  const playerPower=calcPlayerPower();
+
+  if(tile.enemy){
+    const def=UNIT_DEFS[tile.enemy.type];
+    const bonus=getBonusMultiplier(tile.enemy.type);
+    const finalPower=Math.floor(playerPower*bonus);
+    const winChance=Math.min(95,Math.max(5,Math.floor(finalPower/(tile.enemy.power+finalPower)*100)));
+    document.getElementById('popup-title').textContent=(def?def.icon:'💀')+' '+(def?def.name:'Враг');
+    document.getElementById('popup-enemy').textContent=def?def.name:'Неизвестный';
+    document.getElementById('popup-epower').textContent='💪 '+tile.enemy.power+(G.castle.defense>0?' (атака)':'');
+    document.getElementById('popup-ppower').textContent='⚔️ '+finalPower+(bonus>1?' (×'+bonus.toFixed(1)+' бонус)':'');
+    document.getElementById('popup-chance').textContent=winChance+'%';
+    const r=tile.reward;
+    document.getElementById('popup-reward').textContent=r?`${r.gold}🪙 ${r.wood}🪵 ${r.food}🍞`:'?';
+    document.getElementById('popup-attack-btn').style.display='block';
+    document.getElementById('popup-attack-btn').onclick=()=>{closePopup();startBattle(tile.id);};
+  } else {
+    document.getElementById('popup-title').textContent='🗺️ Свободные земли';
+    document.getElementById('popup-enemy').textContent='Нет';
+    document.getElementById('popup-epower').textContent='—';
+    document.getElementById('popup-ppower').textContent='—';
+    document.getElementById('popup-chance').textContent='100%';
+    document.getElementById('popup-reward').textContent='30🪙 цена захвата';
+    document.getElementById('popup-attack-btn').textContent='🏴 Захватить (30🪙)';
+    document.getElementById('popup-attack-btn').style.display='block';
+    document.getElementById('popup-attack-btn').onclick=()=>{closePopup();doConquer(tile.id);};
+  }
+
+  // позиция popup
+  const W=window.innerWidth, H=window.innerHeight;
+  popup.style.left=Math.min(px,W-270)+'px';
+  popup.style.top=Math.min(py+10,H-200)+'px';
+  popup.classList.add('show');
+}
+
+function closePopup(){
+  document.getElementById('tile-popup').classList.remove('show');
+  G.selectedTile=null;
+}
+
+// ══════════════════════════════════════════════════════════
+// БОЕВАЯ СИСТЕМА
+// ══════════════════════════════════════════════════════════
+
+function calcPlayerPower(){
+  let p=0;
+  Object.entries(G.army).forEach(([type,count])=>{
+    p+=count*(UNIT_DEFS[type]?.power||0);
+  });
+  p+=G.castle.defense*0.5;
+  return Math.floor(p);
+}
+
+function getBonusMultiplier(enemyType){
+  let mult=1;
+  Object.entries(G.army).forEach(([type,count])=>{
+    if(count>0&&UNIT_DEFS[type]?.beats===enemyType) mult=Math.max(mult,1.5);
+  });
+  return mult;
+}
+
+// Анимация боя
+let battleAnimState={};
+const bCanvas=document.getElementById('battle-canvas');
+const bctx=bCanvas.getContext('2d');
+let battleAnimId=null;
+
+function startBattle(tileId){
+  const tile=G.map[tileId];
+  if(!tile||!tile.enemy)return;
+
+  const playerPower=calcPlayerPower();
+  const bonus=getBonusMultiplier(tile.enemy.type);
+  const finalPower=Math.floor(playerPower*bonus);
+  const enemyPower=tile.enemy.power;
+  const win=finalPower>=enemyPower||(Math.random()<0.15&&finalPower>=enemyPower*0.7);
+
+  // открываем модал боя
+  const modal=document.getElementById('battle-modal');
+  modal.classList.add('show');
+  document.getElementById('battle-title').textContent='⚔️ Бой!';
+  document.getElementById('battle-desc').textContent='';
+  document.getElementById('battle-close-btn').style.display='none';
+
+  // настраиваем анимацию
+  const def=UNIT_DEFS[tile.enemy.type];
+  battleAnimState={
+    frame:0,
+    win,
+    tileId,
+    tile,
+    playerPower:finalPower,
+    enemyPower,
+    bonus,
+    playerX:50, playerY:90,
+    enemyX:250, enemyY:90,
+    particles:[],
+    phase:'fight', // fight | result
+    done:false,
+    rewardGiven:false,
+    enemyIcon:def?def.icon:'👹',
+    // найди лучший юнит игрока
+    playerIcon:(()=>{
+      const best=Object.entries(G.army).filter(([,c])=>c>0).sort((a,b)=>(UNIT_DEFS[b[0]]?.power||0)-(UNIT_DEFS[a[0]]?.power||0))[0];
+      return best?UNIT_DEFS[best[0]]?.icon:'⚔️';
+    })(),
+  };
+
+  if(battleAnimId) cancelAnimationFrame(battleAnimId);
+  battleAnimLoop();
+}
+
+function battleAnimLoop(){
+  battleAnimState.frame++;
+  const s=battleAnimState;
+  const W=bCanvas.width,H=bCanvas.height;
+
+  bctx.fillStyle='#111';
+  bctx.fillRect(0,0,W,H);
+
+  // звёзды фон
+  bctx.fillStyle='rgba(255,255,255,0.3)';
+  for(let i=0;i<20;i++){
+    const sx=(i*73+s.frame*0.3)%W, sy=(i*47)%H;
+    bctx.beginPath();bctx.arc(sx,sy,0.8,0,Math.PI*2);bctx.fill();
+  }
+
+  // power bars
+  const barY=160, barH=10;
+  bctx.fillStyle='rgba(255,255,255,0.1)';
+  bctx.fillRect(10,barY,W/2-15,barH);
+  bctx.fillRect(W/2+5,barY,W/2-15,barH);
+  const pFill=Math.min(1,s.frame/40);
+  bctx.fillStyle='#4ade80';
+  bctx.fillRect(10,barY,(W/2-15)*pFill,barH);
+  bctx.fillStyle='#ef4444';
+  bctx.fillRect(W/2+5,barY,(W/2-15)*pFill,barH);
+  bctx.font='bold 10px Arial';bctx.textAlign='center';
+  bctx.fillStyle='#fff';
+  bctx.fillText('ВЫ: '+s.playerPower,W/4,barY-3);
+  bctx.fillText('ВРАГ: '+s.enemyPower,W*3/4,barY-3);
+
+  if(s.phase==='fight'){
+    // движение юнитов навстречу
+    if(s.frame<40){
+      s.playerX=50+s.frame*2;
+      s.enemyX=250-s.frame*2;
+    } else if(s.frame===40){
+      // удар — частицы
+      for(let i=0;i<18;i++){
+        const a=Math.random()*Math.PI*2;
+        s.particles.push({x:W/2,y:90,vx:Math.cos(a)*3,vy:Math.sin(a)*3,life:1,color:s.win?'#ffd600':'#ef4444',r:3+Math.random()*4});
+      }
+    } else if(s.frame>40&&s.frame<70){
+      if(s.win){
+        // враг отступает
+        s.enemyX=150+(s.frame-40)*3;
+        s.playerX=150;
+      } else {
+        // игрок отступает
+        s.playerX=150-(s.frame-40)*3;
+        s.enemyX=150;
+      }
+    } else if(s.frame>=70){
+      s.phase='result';
+      applyBattleResult(s);
+    }
+
+    // рисуем юнитов
+    bctx.font='48px Arial';bctx.textAlign='center';
+    bctx.fillText(s.playerIcon,s.playerX,H*0.55);
+    bctx.fillText(s.enemyIcon,s.enemyX,H*0.55);
+
+    // VS
+    if(s.frame<40){
+      bctx.font='bold 20px Arial';bctx.fillStyle='#ffd600';
+      bctx.textAlign='center';
+      bctx.fillText('VS',W/2,H*0.4);
+    }
+  }
+
+  if(s.phase==='result'&&!s.done){
+    // итог
+    bctx.font='bold 22px Arial';bctx.textAlign='center';
+    bctx.fillStyle=s.win?'#4ade80':'#ef4444';
+    bctx.fillText(s.win?'🎉 ПОБЕДА!':'💔 ПОРАЖЕНИЕ',W/2,H*0.4);
+    if(s.frame>80){
+      s.done=true;
+      document.getElementById('battle-title').textContent=s.win?'🎉 Победа!':'💔 Поражение';
+      document.getElementById('battle-close-btn').style.display='block';
+    }
+  }
+
+  // частицы
+  for(let i=s.particles.length-1;i>=0;i--){
+    const p=s.particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=0.03;
+    if(p.life<=0){s.particles.splice(i,1);continue;}
+    bctx.globalAlpha=p.life;
+    bctx.fillStyle=p.color;
+    bctx.beginPath();bctx.arc(p.x,p.y,p.r,0,Math.PI*2);bctx.fill();
+    bctx.globalAlpha=1;
+  }
+
+  if(!s.done){
+    battleAnimId=requestAnimationFrame(battleAnimLoop);
+  }
+}
+
+function applyBattleResult(s){
+  const tile=G.map[s.tileId];
+  if(!tile)return;
+
+  if(s.win){
+    const r=tile.reward||{gold:20,wood:10,food:10,stone:0};
+    G.res.gold+=r.gold;
+    G.res.wood+=r.wood;
+    G.res.food+=r.food;
+    G.res.stone+=(r.stone||0);
+    G.xp+=30;
+    G.wins++;
+    tile.owned=true;
+    tile.enemy=null;
+    tileFlash[s.tileId]={color:'#4ade80',frames:20};
+
+    // добавляем float текст
+    const tr=tileRect(s.tileId);
+    floatTexts.push({x:tr.x+tr.w/2,y:tr.y+tr.h/2,text:'+'+r.gold+'🪙',life:1,color:'#ffd600',size:18});
+
+    // разблокируем соседей
+    unlockNeighbors(s.tileId);
+
+    // xp → level up
+    checkLevelUp();
+
+    // лог
+    addLog(`<span class="log-win">⚔️ Победа над ${UNIT_DEFS[s.tile.enemy?.type]?.name||'врагом'}! +${r.gold}🪙 +${r.wood}🪵</span>`);
+
+    document.getElementById('battle-desc').textContent=
+      `Получено: ${r.gold}🪙 ${r.wood}🪵 ${r.food}🍞${r.stone?' '+r.stone+'⛏️':''}`;
+
+    // проверяем победу
+    const allConquered=G.map.every(t=>t.owned||!t.enemy);
+    if(allConquered) setTimeout(()=>{closeBattle();showVictory();},600);
+  } else {
+    // поражение
+    const dmg=Math.floor((s.enemyPower-s.playerPower)*0.4+5);
+    G.castle.hp=Math.max(0,G.castle.hp-dmg);
+    tileFlash[0]={color:'#ef4444',frames:20};
+
+    // теряем часть армии
+    let lost=[];
+    Object.keys(G.army).forEach(type=>{
+      if(G.army[type]>0&&Math.random()<0.4){
+        G.army[type]=Math.max(0,G.army[type]-1);
+        lost.push(UNIT_DEFS[type]?.icon||type);
+      }
+    });
+    const lostStr=lost.length?` Потеряно: ${lost.join('')}`:'';
+    addLog(`<span class="log-lose">💔 Поражение! Замок −${dmg} HP.${lostStr}</span>`);
+    document.getElementById('battle-desc').textContent=`Замок получил ${dmg} урона.${lostStr}`;
+
+    if(G.castle.hp<=0) setTimeout(()=>{closeBattle();showGameOver();},600);
+  }
+
+  renderUI();
+}
+
+function unlockNeighbors(id){
+  const row=Math.floor(id/GRID), col=id%GRID;
+  const dirs=[[0,1],[0,-1],[1,0],[-1,0]];
+  dirs.forEach(([dr,dc])=>{
+    const nr=row+dr, nc=col+dc;
+    if(nr>=0&&nr<GRID&&nc>=0&&nc<GRID){
+      const nid=nr*GRID+nc;
+      if(G.map[nid]&&G.map[nid].locked) G.map[nid].locked=false;
+    }
+  });
+}
+
+function closeBattle(){
+  document.getElementById('battle-modal').classList.remove('show');
+  if(battleAnimId) cancelAnimationFrame(battleAnimId);
+}
+
+// ══════════════════════════════════════════════════════════
+// ДЕЙСТВИЯ
+// ══════════════════════════════════════════════════════════
+
+function doCollect(){
+  if(G.collectUsed){showToast('⏳ Уже собирал в этом ходу');return;}
+  const income=10+G.level*3+G.upgrades.market*5;
+  G.res.gold+=income;
+  G.collectUsed=true;
+  addLog(`💰 Налоги собраны: +${income}🪙`);
+  showToast('+'+income+'🪙 собрано!');
+  renderUI();
+}
+
+function doEndTurn(){
+  G.turn++;
+  G.totalTurns++;
+  G.collectUsed=false;
+  G.fortifyUsed=false;
+
+  // пассивный доход
+  const owned=G.map.filter(t=>t.owned).length;
+  const goldIncome=owned*3+G.upgrades.market*5+G.level*2;
+  const woodIncome=owned+G.upgrades.sawmill*3;
+  const foodIncome=owned+G.upgrades.farm*3;
+  const stoneIncome=G.upgrades.mine*2;
+  G.res.gold+=goldIncome;
+  G.res.wood+=woodIncome;
+  G.res.food+=foodIncome;
+  G.res.stone+=stoneIncome;
+
+  // алтарь
+  if(G.upgrades.altar>0&&G.turn-G.lastAltarTurn>=5){
+    const altarGold=50*G.upgrades.altar;
+    G.res.gold+=altarGold;
+    G.lastAltarTurn=G.turn;
+    addLog(`<span class="log-event">⛩️ Алтарь дал благодать: +${altarGold}🪙</span>`);
+    floatTexts.push({x:tileRect(0).x+TILE_SIZE/2,y:tileRect(0).y,text:'+'+altarGold+'🪙',life:1,color:'#fbbf24',size:20});
+  }
+
+  // враги атакуют каждые 3 хода
+  if(G.turn%3===0){
+    enemyAttack();
+  }
+
+  // еда кормит армию
+  const totalUnits=Object.values(G.army).reduce((a,b)=>a+b,0);
+  if(totalUnits>0){
+    const foodNeeded=Math.floor(totalUnits*0.5);
+    if(G.res.food>=foodNeeded){
+      G.res.food-=foodNeeded;
+    } else {
+      // армия голодает — теряем юнит
+      const types=Object.keys(G.army).filter(t=>G.army[t]>0);
+      if(types.length){
+        const t=types[Math.floor(Math.random()*types.length)];
+        G.army[t]--;
+        addLog(`<span class="log-lose">🍞 Голод! Потерян ${UNIT_DEFS[t]?.icon||t}</span>`);
+      }
+    }
+  }
+
+  addLog(`⏭️ Ход ${G.turn} | Доход: +${goldIncome}🪙 +${woodIncome}🪵 +${foodIncome}🍞${stoneIncome?' +'+stoneIncome+'⛏️':''}`);
+  renderUI();
+}
+
+function enemyAttack(){
+  const targets=G.map.filter(t=>t.enemy&&!t.locked);
+  if(!targets.length||G.wins===0)return;
+  const enemy=targets[Math.floor(Math.random()*targets.length)];
+  if(Math.random()<0.35){
+    const def=UNIT_DEFS[enemy.enemy.type];
+    const dmg=Math.floor(enemy.enemy.army*2-G.castle.defense*0.3);
+    if(dmg>0){
+      G.castle.hp=Math.max(0,G.castle.hp-dmg);
+      tileFlash[0]={color:'#ef4444',frames:25};
+      addLog(`<span class="log-lose">⚠️ ${def?.icon||'💀'} атакуют! Замок −${dmg} HP</span>`);
+      showToast('⚠️ Вас атакуют! −'+dmg+' HP');
+      if(G.castle.hp<=0) showGameOver();
+    }
+  }
+}
+
+function doConquer(tileId){
+  if(G.res.gold<30){showToast('❌ Нужно 30🪙');return;}
+  G.res.gold-=30;
+  G.map[tileId].owned=true;
+  unlockNeighbors(tileId);
+  tileFlash[tileId]={color:'#4ade80',frames:20};
+  G.xp+=10;
+  checkLevelUp();
+  addLog('🏴 Земля захвачена!');
+  showToast('🗺️ +1 территория');
+  renderUI();
+}
+
+function doFortify(){
+  if(G.fortifyUsed){showToast('⏳ Уже укреплял в этом ходу');return;}
+  if(G.res.wood<20){showToast('❌ Нужно 20🪵');return;}
+  G.res.wood-=20;
+  G.castle.defense+=5+G.upgrades.wall*2;
+  G.castle.hp=Math.min(G.castle.maxHp,G.castle.hp+15);
+  G.fortifyUsed=true;
+  addLog(`🛡️ Замок укреплён! +${5+G.upgrades.wall*2} защиты, +15 HP`);
+  showToast('🛡️ Укреплено!');
+  renderUI();
+}
+
+function doAttackAll(){
+  const targets=G.map.filter(t=>t.enemy&&!t.locked);
+  if(!targets.length){showToast('Нет врагов для атаки');return;}
+  // атакуем первого
+  startBattle(targets[0].id);
+}
+
+function doRecruit(type){
+  const def=UNIT_DEFS[type];
+  if(!def)return;
+  const discount=G.upgrades.barracks*0.15;
+  const cost={};
+  Object.entries(def.cost).forEach(([k,v])=>{cost[k]=Math.floor(v*(1-discount));});
+  if(!canAfford(cost)){showToast('❌ Недостаточно ресурсов');return;}
+  spendRes(cost);
+  G.army[type]++;
+  addLog(`🎖️ Нанят ${def.icon} ${def.name}`);
+  showToast('+1 '+def.name);
+  renderUI();
+}
+
+function doBuyUpgrade(id){
+  const def=UPGRADE_DEFS.find(u=>u.id===id);
+  if(!def)return;
+  const lvl=G.upgrades[id];
+  if(lvl>=def.maxLevel){showToast('Максимальный уровень!');return;}
+  const mult=1+lvl*0.6;
+  const cost={};
+  Object.entries(def.baseCost).forEach(([k,v])=>{cost[k]=Math.floor(v*mult);});
+  if(!canAfford(cost)){showToast('❌ Недостаточно ресурсов');return;}
+
+  // особые условия
+  if(id==='mine'&&G.upgrades.mine===0&&G.level<3){showToast('⚠️ Нужен уровень 3');return;}
+
+  spendRes(cost);
+  G.upgrades[id]++;
+
+  // применяем эффекты
+  if(id==='wall'){G.castle.defense+=8;G.castle.maxHp+=10;}
+  if(id==='tower'){G.castle.defense+=10;}
+
+  addLog(`🏗️ ${def.icon} ${def.name} ур.${G.upgrades[id]}`);
+  showToast(`${def.icon} ${def.name} улучшено!`);
+  renderUI();
+}
+
+function canAfford(cost){
+  return Object.entries(cost).every(([k,v])=>(G.res[k]||0)>=v);
+}
+function spendRes(cost){
+  Object.entries(cost).forEach(([k,v])=>{G.res[k]=(G.res[k]||0)-v;});
+}
+
+function checkLevelUp(){
+  while(G.xp>=G.xpToLevel){
+    G.xp-=G.xpToLevel;
+    G.level++;
+    G.xpToLevel=Math.floor(G.xpToLevel*1.6);
+    G.castle.hp=G.castle.maxHp;
+    addLog(`<span class="log-event">🆙 Уровень ${G.level}! Замок восстановлен</span>`);
+    showToast('🆙 Уровень '+G.level+'!');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// UI РЕНДЕР
+// ══════════════════════════════════════════════════════════
+
+function renderUI(){
+  // ресурсы
+  document.getElementById('r-gold').textContent=G.res.gold;
+  document.getElementById('r-wood').textContent=G.res.wood;
+  document.getElementById('r-food').textContent=G.res.food;
+  document.getElementById('r-stone').textContent=G.res.stone;
+  document.getElementById('h-turn').textContent=G.turn;
+  document.getElementById('h-wins').textContent=G.wins;
+  document.getElementById('h-level').textContent=G.level;
+  document.getElementById('xp-bar').style.width=(G.xp/G.xpToLevel*100)+'%';
+
+  // income preview
+  const owned=G.map.filter(t=>t.owned).length;
+  const inc=owned*3+G.upgrades.market*5+G.level*2;
+  document.getElementById('income-preview').textContent='доход: +'+inc+'🪙';
+  document.getElementById('collect-amount').textContent='+'+(10+G.level*3+G.upgrades.market*5)+'🪙';
+
+  // кнопки действий
+  document.getElementById('btn-collect').disabled=G.collectUsed;
+  document.getElementById('btn-fortify').disabled=G.fortifyUsed||G.res.wood<20;
+  const hasEnemies=G.map.some(t=>t.enemy&&!t.locked);
+  document.getElementById('btn-attack-all').disabled=!hasEnemies;
+
+  // армия
+  const unitsGrid=document.getElementById('units-grid');
+  unitsGrid.innerHTML='';
+  Object.entries(UNIT_DEFS).forEach(([type,def])=>{
+    const discount=G.upgrades.barracks*0.15;
+    const cost={};
+    Object.entries(def.cost).forEach(([k,v])=>{cost[k]=Math.floor(v*(1-discount));});
+    const affordable=canAfford(cost);
+    const locked=type==='mage'&&G.upgrades.mine===0;
+
+    const div=document.createElement('div');
+    div.className='unit-card'+((!affordable||locked)?' cant':'');
+    const costStr=Object.entries(cost).map(([k,v])=>v+{gold:'🪙',wood:'🪵',food:'🍞',stone:'⛏️'}[k]).join(' ');
+    div.innerHTML=`
+      <div class="u-icon">${locked?'🔒':def.icon}</div>
+      <div class="u-name">${def.name}</div>
+      <div class="u-count">${G.army[type]}</div>
+      <div class="u-power">💪${def.power} | ${def.desc}</div>
+      <div class="u-cost">${locked?'Нужна шахта':costStr}</div>
+    `;
+    if(!locked) div.addEventListener('touchstart',e=>{e.preventDefault();doRecruit(type);},{passive:false});
+    if(!locked) div.addEventListener('mousedown',()=>doRecruit(type));
+    unitsGrid.appendChild(div);
+  });
+
+  // улучшения
+  const upGrid=document.getElementById('upgrades-grid');
+  upGrid.innerHTML='';
+  UPGRADE_DEFS.forEach(def=>{
+    const lvl=G.upgrades[def.id];
+    const maxed=lvl>=def.maxLevel;
+    const mult=1+lvl*0.6;
+    const cost={};
+    Object.entries(def.baseCost).forEach(([k,v])=>{cost[k]=Math.floor(v*mult);});
+    const affordable=canAfford(cost);
+
+    const div=document.createElement('div');
+    div.className='upg-card'+(maxed?' maxed':(!affordable?' cant':''));
+    const costStr=maxed?'МАКС':Object.entries(cost).map(([k,v])=>v+{gold:'🪙',wood:'🪵',food:'🍞',stone:'⛏️'}[k]).join(' ');
+    div.innerHTML=`
+      <div class="upg-icon">${def.icon}</div>
+      <div class="upg-info">
+        <div class="upg-name">${def.name}</div>
+        <div class="upg-level">${'★'.repeat(lvl)}${'☆'.repeat(def.maxLevel-lvl)} ${def.desc}</div>
+        <div class="upg-cost">${costStr}</div>
+      </div>
+    `;
+    if(!maxed){
+      div.addEventListener('touchstart',e=>{e.preventDefault();doBuyUpgrade(def.id);},{passive:false});
+      div.addEventListener('mousedown',()=>doBuyUpgrade(def.id));
+    }
+    upGrid.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// ЛОГ
+// ══════════════════════════════════════════════════════════
+
+function addLog(msg){
+  const el=document.getElementById('log-inner');
+  const div=document.createElement('div');
+  div.className='log-entry';
+  div.innerHTML=msg;
+  el.prepend(div);
+  if(el.children.length>30) el.lastChild.remove();
+}
+
+let logOpen=false;
+function toggleLog(){
+  logOpen=!logOpen;
+  document.getElementById('log-wrap').classList.toggle('open',logOpen);
+  document.getElementById('log-toggle').textContent=logOpen?'✕':'📜';
+}
+
+// ══════════════════════════════════════════════════════════
+// ТАБЫ
+// ══════════════════════════════════════════════════════════
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const names=['army','actions','upgrades'];
+    t.classList.toggle('active',names[i]===name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════
+// ТОСТ
+// ══════════════════════════════════════════════════════════
+
+let toastTimer=null;
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+// ══════════════════════════════════════════════════════════
+// КОНЕЦ ИГРЫ
+// ══════════════════════════════════════════════════════════
+
+function showGameOver(){
+  const el=document.getElementById('gameover');
+  document.getElementById('go-stats').innerHTML=
+    `Ходов: ${G.turn}<br>Побед: ${G.wins}<br>Уровень: ${G.level}<br>Золото: ${G.res.gold}🪙`;
+  el.classList.add('show');
+}
+
+function showVictory(){
+  const el=document.getElementById('victory');
+  document.getElementById('vic-stats').innerHTML=
+    `🏆 Все земли покорены за ${G.turn} ходов!<br>Побед в бою: ${G.wins} | Уровень: ${G.level}`;
+  el.classList.add('show');
+}
+
+function restartGame(){
+  document.getElementById('gameover').classList.remove('show');
+  document.getElementById('victory').classList.remove('show');
+  newGame();
+  renderUI();
+  addLog('<span class="log-event">🎮 Новая игра! Тапни по врагу для атаки</span>');
+}
+
+// ══════════════════════════════════════════════════════════
+// MAIN LOOP
+// ══════════════════════════════════════════════════════════
+
+function loop(){
+  requestAnimationFrame(loop);
+  drawMap();
+}
+
+// ══════════════════════════════════════════════════════════
+// СТАРТ
+// ══════════════════════════════════════════════════════════
+
+resizeMap();
+window.addEventListener('resize',()=>{resizeMap();});
+newGame();
+renderUI();
+addLog('<span class="log-event">⚔️ Добро пожаловать в Mini Kingdom!</span>');
+addLog('📌 Тапни по вражескому тайлу для атаки');
+addLog('📌 Воин бьёт Лучника | Лучник бьёт Рыцаря | Рыцарь бьёт Воина');
+loop();
+</script>
+</body>
+</html>
